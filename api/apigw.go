@@ -288,7 +288,7 @@ func main() {
 	router := mux.NewRouter()
 	router.HandleFunc("/news/{newsID:[0-9]+}", AddCommentHandler).Methods("POST")
 	router.HandleFunc("/news/{newsID:[0-9]+}", GetNewsDetailHandler).Methods("GET")
-	router.HandleFunc("/news/", GetNewsListHandler).Methods("GET")
+	router.HandleFunc("/news", GetNewsListHandler).Methods("GET")
 	router.HandleFunc("/news/filter", FilterNewsHandler).Methods("GET")
 
 	log.Println("API Gateway запущен на порту 8080...")
