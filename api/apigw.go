@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"net/url"
@@ -16,18 +15,18 @@ import (
 	"github.com/gorilla/mux"
 )
 
-// RequestResult хранит результат запроса и ошибку.
+// RequestResult stores the result of the request and the error.
 type RequestResult struct {
 	Data interface{}
 	Err  error
 }
 
-// Получение списка новостей.
+// Get the list of news.
 type NewsListResponse struct {
 	Posts []NewsShortDetailed `json:"posts"`
 }
 
-// NewsFullDetailed содержит полную информацию о новости.
+// NewsFullDetailed contains complete information about a news item.
 type NewsFullDetailed struct {
 	ID       int
 	Title    string
@@ -37,7 +36,7 @@ type NewsFullDetailed struct {
 	Comments []Comment
 }
 
-// NewsShortDetailed содержит краткую информацию о новости.
+// NewsShortDetailed contains brief information about the news.
 type NewsShortDetailed struct {
 	ID      int
 	Title   string
@@ -46,7 +45,7 @@ type NewsShortDetailed struct {
 	Link    string
 }
 
-// Comment содержит информацию о комментарии.
+// Comment contains information about the comment.
 type Comment struct {
 	ID        int    // comment number
 	ID_News   int64  // news number
@@ -55,7 +54,7 @@ type Comment struct {
 	ComTime   int64  // comment time
 }
 
-// AddCommentHandler обрабатывает запрос на добавление комментария к новости.
+// AddCommentHandler handles a request to add a comment to a news item.
 func AddCommentHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	newsID, err := strconv.Atoi(vars["newsID"])
@@ -71,7 +70,6 @@ func AddCommentHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	comment.ID_News = int64(newsID)
 
-	// Проверяем комментарий на цензуру
 	resp, err := http.Post("http://localhost:8083/", "application/x-www-form-urlencoded", strings.NewReader("comment="+comment.Content))
 	if err != nil {
 		http.Error(w, "Failed to check comment censorship", http.StatusInternalServerError)
@@ -84,14 +82,12 @@ func AddCommentHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Преобразуем комментарий в JSON
 	commentJSON, err := json.Marshal(comment)
 	if err != nil {
 		http.Error(w, "Failed to marshal comment", http.StatusInternalServerError)
 		return
 	}
 
-	// Если комментарий прошел проверку на цензуру, добавляем его через API сервиса комментариев
 	resp, err = http.Post("http://localhost:8082/news/"+vars["newsID"], "application/json", bytes.NewBuffer(commentJSON))
 	if err != nil {
 		http.Error(w, "Failed to add comment", http.StatusInternalServerError)
@@ -107,18 +103,13 @@ func AddCommentHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 }
 
-// GetNewsDetailHandler обрабатывает запрос на получение детальной информации о новости.
+// GetNewsDetailHandler processes a request to get detailed information about a news item.
 func GetNewsDetailHandler(w http.ResponseWriter, r *http.Request) {
-	// Получаем идентификатор новости из URL
+
 	vars := mux.Vars(r)
 	newsID := vars["newsID"]
-	// Создаем канал для передачи результатов запросов и ошибок
 	chResults := make(chan RequestResult, 2)
-
-	// Создаем группу ожидания
 	var wg sync.WaitGroup
-
-	// Запускаем горутины для выполнения запросов
 
 	// Запрос к агрегатору новостей
 	wg.Add(1)
@@ -140,19 +131,18 @@ func GetNewsDetailHandler(w http.ResponseWriter, r *http.Request) {
 		chResults <- RequestResult{Data: newsDetail}
 	}()
 
-	// Запрос к сервису комментариев
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		
+
 		client := http.Client{}
 		req, err := http.NewRequest("GET", "http://localhost:8082/news/"+newsID, nil)
 		if err != nil {
 			chResults <- RequestResult{Err: err}
 			return
 		}
-		req.Header.Set("Content-Type", "application/json") // Установка заголовка Content-Type
-		
+		req.Header.Set("Content-Type", "application/json")
+
 		resp, err := client.Do(req)
 		if err != nil {
 			chResults <- RequestResult{Err: err}
@@ -168,15 +158,10 @@ func GetNewsDetailHandler(w http.ResponseWriter, r *http.Request) {
 
 		chResults <- RequestResult{Data: comments}
 	}()
-
-	// Ожидаем завершения всех запросов
 	go func() {
 		wg.Wait()
 		close(chResults)
 	}()
-
-	// Обрабатываем результаты запросов
-
 	var newsData NewsFullDetailed
 	var commentsData []Comment
 
@@ -193,11 +178,7 @@ func GetNewsDetailHandler(w http.ResponseWriter, r *http.Request) {
 			commentsData = data
 		}
 	}
-
-	// Добавляем комментарии к новости
 	newsData.Comments = commentsData
-
-	// Возвращаем результат в формате JSON
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(newsData); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -214,22 +195,17 @@ func GetNewsListHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
-	// Проверяем статус ответа
 	if resp.StatusCode != http.StatusOK {
 		http.Error(w, "Failed to fetch news list", resp.StatusCode)
 		return
 	}
-
-	// Декодируем полученные данные из JSON
 	var newsListResponse NewsListResponse
 	if err := json.NewDecoder(resp.Body).Decode(&newsListResponse); err != nil {
 		http.Error(w, "Failed to decode news list response", http.StatusInternalServerError)
 		return
 	}
 
-	// Преобразуем полученные данные в формат NewsShortDetailed
 	var shortNewsList []NewsShortDetailed
-	// Преобразование данных из NewsFullDetailed в NewsShortDetailed с обрезанием Content до 200 символов
 	for _, news := range newsListResponse.Posts {
 		var shortContent string
 		if len(news.Content) > 200 {
@@ -248,7 +224,6 @@ func GetNewsListHandler(w http.ResponseWriter, r *http.Request) {
 		shortNewsList = append(shortNewsList, shortNews)
 	}
 
-	// Возвращаем список новостей в формате JSON
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(shortNewsList); err != nil {
 		http.Error(w, "Failed to encode news list", http.StatusInternalServerError)
@@ -256,32 +231,35 @@ func GetNewsListHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// FilterNewsHandler обрабатывает запрос на фильтрацию списка новостей.
+// FilterNewsHandler handles the request to filter the news list.
 func FilterNewsHandler(w http.ResponseWriter, r *http.Request) {
-	searchParam := r.URL.Query().Get("s")
-	fmt.Println(url.QueryEscape(r.URL.Query().Get("s")))
-	resp, err := http.Get("http://localhost:8081/news?s=" + searchParam)
+	var resp *http.Response
+	var err error
+	searchParam := url.QueryEscape(r.URL.Query().Get("s"))
+	pageStr := r.URL.Query().Get("page")
+	log.Println(searchParam)
+	if pageStr != "" {
+		resp, err = http.Get("http://localhost:8081/news?s=" + searchParam + "&page=" + pageStr)
+	} else {
+		resp, err = http.Get("http://localhost:8081/news?s=" + searchParam)
+	}
 	if err != nil {
 		http.Error(w, "Failed to fetch filtered news list", http.StatusInternalServerError)
 		return
 	}
 	defer resp.Body.Close()
-
-	// Проверяем статус ответа
 	if resp.StatusCode != http.StatusOK {
 		http.Error(w, "Failed to fetch filtered news list", resp.StatusCode)
 		return
 	}
 
-	// Декодируем полученные данные из JSON
 	var filteredNewsListResponse NewsListResponse
 	if err := json.NewDecoder(resp.Body).Decode(&filteredNewsListResponse); err != nil {
 		http.Error(w, "Failed to decode filtered news list", http.StatusInternalServerError)
 		return
 	}
-	// Преобразуем полученные данные в формат NewsShortDetailed
+
 	var filteredNewsList []NewsShortDetailed
-	// Преобразование данных из NewsFullDetailed в NewsShortDetailed с обрезанием Content до 200 символов
 	for _, news := range filteredNewsListResponse.Posts {
 		var shortContent string
 		if len(news.Content) > 200 {
@@ -299,8 +277,6 @@ func FilterNewsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		filteredNewsList = append(filteredNewsList, shortNews)
 	}
-
-	// Возвращаем список новостей в формате JSON
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(filteredNewsList); err != nil {
 		http.Error(w, "Failed to encode news list", http.StatusInternalServerError)
@@ -310,10 +286,10 @@ func FilterNewsHandler(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	router := mux.NewRouter()
-	router.HandleFunc("/news/{newsID}", AddCommentHandler).Methods("POST")
-	router.HandleFunc("/news/{newsID}", GetNewsDetailHandler).Methods("GET")
-	router.HandleFunc("/news", GetNewsListHandler).Methods("GET")
-	router.HandleFunc("/news", FilterNewsHandler).Methods("GET")
+	router.HandleFunc("/news/{newsID:[0-9]+}", AddCommentHandler).Methods("POST")
+	router.HandleFunc("/news/{newsID:[0-9]+}", GetNewsDetailHandler).Methods("GET")
+	router.HandleFunc("/news/", GetNewsListHandler).Methods("GET")
+	router.HandleFunc("/news/filter", FilterNewsHandler).Methods("GET")
 
 	log.Println("API Gateway запущен на порту 8080...")
 	err := http.ListenAndServe(":8080", middleware.RequestIDMiddleware(middleware.LoggingMiddleware(router)))

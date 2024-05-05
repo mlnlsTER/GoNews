@@ -10,7 +10,6 @@ import (
 	"GoNews/comments/pkg/middleware"
 )
 
-// Comments Server.
 type server struct {
 	db  comStorage.CommentsInterface
 	api *api.API
@@ -20,19 +19,15 @@ func main() {
 	var err error
 	var srv server
 
-	// Initialize PostgreSQL server storage.
 	srv.db, err = postgres.New("postgres://postgres:8952@localhost:5432/comments")
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	// Create API object and register handlers.
 	srv.api = api.New(srv.db)
 
 	chComments := make(chan []comStorage.Comment)
 	chErrors := make(chan error)
 
-	// Start goroutine for comment censorship
 	go func() {
 		for comments := range chComments {
 			censorComments(comments, srv.db, chErrors)
@@ -64,7 +59,6 @@ func censorComments(comments []comStorage.Comment, db comStorage.CommentsInterfa
 		}
 	}
 
-	// Add approved comments to the database
 	err := db.AddComments(approvedComments)
 	if err != nil {
 		chErrors <- err

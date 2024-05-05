@@ -4,7 +4,7 @@ import (
 	"GoNews/comments/pkg/storage"
 )
 
-// Хранилище данных.
+// Data storage.
 type DB []comStorage.Comment
 
 func (db *DB) Comments() ([]comStorage.Comment, error) {

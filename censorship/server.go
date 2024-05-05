@@ -35,7 +35,6 @@ func censorHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Все проверки пройдены, комментарий прошел цензуру
 	w.WriteHeader(http.StatusOK)
 }
 

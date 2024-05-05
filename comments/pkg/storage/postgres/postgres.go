@@ -10,7 +10,6 @@ import (
 // Data storage.
 type Storage struct {
 	db *pgxpool.Pool
-	//requestID string
 }
 
 // Constructor creates a new Storage object.
@@ -21,15 +20,12 @@ func New(constr string) (*Storage, error) {
 	}
 	s := Storage{
 		db: db,
-		//requestID: "",
 	}
 	return &s, nil
 }
 
 // Comments returns publication comments from the database.
 func (s *Storage) Comments(n int64) ([]comStorage.Comment, error) {
-	//s.requestID = requestID
-	
 	rows, err := s.db.Query(context.Background(), `
 		SELECT 
 			id,
@@ -66,8 +62,6 @@ func (s *Storage) Comments(n int64) ([]comStorage.Comment, error) {
 
 // AddComments creates a new comments in the database.
 func (s *Storage) AddComments(comments []comStorage.Comment) error {
-	//s.requestID = requestID
-
 	for _, comment := range comments {
 		_, err := s.db.Exec(context.Background(), `
 		INSERT INTO comments(id, id_news, id_parent, content, commented_at)
